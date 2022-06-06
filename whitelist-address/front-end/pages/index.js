@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { WHITELIST_CONTRACT_ADDRESS, abi } from "../constants";
 
 export default function Home() {
-
   const [numberOfWhitelisted, setNumberOfWhitelisted] = useState(0);
   const [walletConnected, setWalletConnected] = useState(false);
   const [joinedWhitelist, setJoinedWhitelist] = useState(false);
@@ -44,35 +43,93 @@ export default function Home() {
     return web3Provider;
   };
 
-  const addAddressToWhitelist = () => { };
+  const addAddressToWhitelist = async () => {
+    try {
+      const signer = await getProviderOrSigner(true);
+      const whitelistContract = new Contract(
+        WHITELIST_CONTRACT_ADDRESS,
+        abi,
+        signer
+      );
 
-  const getNumberOfWhitelisted = () => { };
+      // Call addAddressToWhitelist from the contract
+      const transaction = await whitelistContract.addAddressToWhitelist();
+      setLoading(true);
+      await transaction.wait();
+      setLoading(false);
 
-  const checkIfAddressInWhitelist = () => { };
+      // Get the updated number of addresses in the whitelist
+      await getNumberOfWhitelisted();
+      setJoinedWhitelist(true);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-  const connectWallet = async () => { 
+  const getNumberOfWhitelisted = async () => {
+    try {
+      const provider = await getProviderOrSigner();
+      const whitelistContract = new Contract(
+        WHITELIST_CONTRACT_ADDRESS,
+        abi,
+        provider
+      );
+
+      // Call the numAddressesWhitelisted from contract
+      const _numberOfWhitelisted =
+        await whitelistContract.numAddressesWhitelisted();
+      setNumberOfWhitelisted(_numberOfWhitelisted);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const checkIfAddressInWhitelist = async () => {
+    try {
+      // Signer will be needed later to get User's address
+      const signer = await getProviderOrSigner(true);
+      const whitelistContract = new Contract(
+        WHITELIST_CONTRACT_ADDRESS,
+        abi,
+        signer
+      );
+
+      // Get the address associated with metamask
+      const address = await signer.getAddress();
+
+      // Call whitelistedAddresses from the contract
+      const _joinedWhitelist = await whitelistContract.whitelistedAddresses(
+        address
+      );
+      setJoinedWhitelist(_joinedWhitelist);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const connectWallet = async () => {
     try {
       // Get the provider from web3modal, in our case MetaMask
       // When used for the first time, it prompts the user to connect wallet
       await getProviderOrSigner();
       setWalletConnected(true);
 
-      //checkIfAddressInWhitelist();
-      //getNumberOfWhitelisted();
+      checkIfAddressInWhitelist();
+      getNumberOfWhitelisted();
     } catch (error) {
       console.error(error);
     }
   };
 
-  const renderButton = () => { 
+  const renderButton = () => {
     if (walletConnected) {
-      if (joinedWhitelist) { 
+      if (joinedWhitelist) {
         return (
           <div className={styles.description}>
             Thanks for joining the Whitelist!
           </div>
         );
-      } else if(loading) {
+      } else if (loading) {
         return <button className={styles.button}>Loading...</button>;
       } else {
         return (
@@ -111,7 +168,7 @@ export default function Home() {
         <meta name="description" content="Whitelist-Addresses" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-       <div className={styles.main}>
+      <div className={styles.main}>
         <div>
           <h1 className={styles.title}>Welcome to Blockchain Developments!</h1>
           <div className={styles.description}>
@@ -130,5 +187,5 @@ export default function Home() {
         Made with &#10084; by <strong>Naresh</strong>
       </footer>
     </div>
-  )
+  );
 }
