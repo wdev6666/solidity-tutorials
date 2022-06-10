@@ -1,68 +1,237 @@
-import Head from 'next/head'
-import Image from 'next/image'
+import { Contract, providers } from "ethers";
+import { formatEther } from "ethers/lib/utils";
+import Head from 'next/head';
+import { useState, useRef, useEffect } from "react";
+import Web3Modal from "web3modal";
+import { DAO_CONTRACT_ADDRESS, DAO_ABI, NFT_CONTRACT_ADDRESS, NFT_ABI } from "../constants";
 import styles from '../styles/Home.module.css'
 
 export default function Home() {
+  const [nftBalance, setNftBalance] = useState(0);
+  const [treasuryBalance, setTreasuryBalance] = useState(0);
+  const [numProposals, setNumProposals] = useState(0);
+  const [selectedTab, setSelectedTab] = useState("");
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [fakeNftTokenId, setFakeNftTokenId] = useState("");
+  const [proposals, setProposals] = useState([]);
+  const web3ModalRef = useRef();
+
+  const getProviderOrSigner = async (needSigner = false) => { 
+    const provider = await web3ModalRef.current.connect();
+    const web3Provider = new providers.Web3Provider(provider);
+    const { chainId } = await web3Provider.getNetwork();
+    if (chainId !== 4) {
+      window.alert("Please switch to the Rinkeby network!");
+      throw new Error("Please switch to the Rinkeby network");
+    }
+    if (needSigner) {
+      const signer = web3Provider.getSigner();
+      return signer;
+    }
+    return web3Provider;
+  };
+
+  const connectWallet = async () => { 
+    try { 
+      await getProviderOrSigner();
+      setWalletConnected(true);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const getDaoContractInstance = async (providerOrSigner) => { 
+    return new Contract({
+      DAO_CONTRACT_ADDRESS, DAO_ABI, providerOrSigner
+    });
+  };
+
+  const getNftContractInstance = async (providerOrSigner) => { 
+    return new Contract({
+      NFT_CONTRACT_ADDRESS, NFT_ABI, providerOrSigner
+    });
+  };
+  const createProposal = async () => { };
+
+  const executeProposal = async () => { };
+
+  const voteOnProposal = async () => { };
+
+  const renderCreateProposalTab = () => {
+    if (loading) {
+      return (
+        <div className={styles.description}>
+        Loading... Waiting for transaction...
+        </div>
+      );
+    } else if (nftBalance === 0) {
+      return (
+        <div className={styles.description}>
+          You do not own any NFTs. <br />
+          <b>You cannot create or vote on proposals</b>
+        </div>
+      );
+    } else {
+      return (
+        <div className={styles.container}>
+          <label>Fake NFT Token ID to Purchase: </label>
+          <input
+            placeholder="0"
+            type="number"
+            onChange={(e) => setFakeNftTokenId(e.target.value)}
+          />
+          <button className={styles.button2} onClick={createProposal}>
+            Create
+          </button>
+        </div>
+      );
+    }
+   };
+  const renderViewProposalsTab = () => { 
+    if (loading) {
+      return (
+        <div className={styles.description}>
+          Loading... Waiting for transaction...
+        </div>
+      );
+    } else if (proposals.length === 0) {
+      return (
+        <div className={styles.description}>
+          No proposals have been created
+        </div>
+      );
+    } else {
+      return (
+        <div>
+          {proposals.map((proposal, index) => (
+            <div key={index} className={styles.proposalCard}>
+              <p>Proposal ID: {proposal.proposalId}</p>
+              <p>Fake NFT to Purchase: {proposal.nftTokenId}</p>
+              <p>Deadline: {proposal.deadline.toLocaleString()}</p>
+              <p>Yay Votes: {proposal.yayVotes}</p>
+              <p>Nay Votes: {proposal.nayVotes}</p>
+              <p>Executed?: {proposal.executed.toString()}</p>
+              {proposal.deadline.getTime() > Date.now() && !proposal.executed ? (
+                <div className={styles.flex}>
+                  <button
+                    className={styles.button2}
+                    onClick={() => voteOnProposal(p.proposalId, "YAY")}
+                  >
+                    Vote YAY
+                  </button>
+                  <button
+                    className={styles.button2}
+                    onClick={() => voteOnProposal(p.proposalId, "NAY")}
+                  >
+                    Vote NAY
+                  </button>
+                </div>
+              ) : proposal.deadline.getTime() < Date.now() && !proposal.executed ? (
+                  <div className={styles.flex}>
+                  <button
+                    className={styles.button2}
+                    onClick={() => executeProposal(p.proposalId)}
+                  >
+                    Execute Proposal{" "}
+                    {p.yayVotes > p.nayVotes ? "(YAY)" : "(NAY)"}
+                  </button>
+                </div>
+                ): (
+                    <div className={styles.description}>Proposal Executed</div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+  };
+  const fetchAllProposals = () => { };
+  const getDAOTreasuryBalance = () => { };
+  const getUserNFTBalance = async () => { 
+    try { 
+      const signer = await getProviderOrSigner(true);
+      const nftContract = getNftContractInstance(signer);
+      const balance = await nftBalance.balanceOf(signer.getAddress());
+      setNftBalance(parseInt(balance.toString()));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  const getNumProposalsInDAO = () => { };
+
+  const renderTabs = () => {
+    if (selectedTab === "Create Proposal") {
+      return renderCreateProposalTab();
+    } else if (selectedTab === "View Proposals") {
+      return renderViewProposalsTab();
+    }
+    return null;
+   };
+  
+  useEffect(() => { 
+    if (!walletConnected) {
+      web3ModalRef.current = new Web3Modal({
+        network: "rinkeby",
+        providerOptions: {},
+        disableInjectedProvider: false
+      });
+      connectWallet().then(() => { 
+        getDAOTreasuryBalance();
+        getUserNFTBalance();
+        getNumProposalsInDAO();
+      });
+    }    
+  }, [walletConnected]);
+  
+  useEffect(() => { 
+    if (selectedTab === "View Proposals") {
+      fetchAllProposals();
+    }
+  }, [selectedTab]);
+  
   return (
-    <div className={styles.container}>
+        <div>
       <Head>
-        <title>Create Next App</title>
-        <meta name="description" content="Generated by create next app" />
+        <title>DAO</title>
+        <meta name="description" content="DAO" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
-
-        <p className={styles.description}>
-          Get started by editing{' '}
-          <code className={styles.code}>pages/index.js</code>
-        </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h2>Documentation &rarr;</h2>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h2>Learn &rarr;</h2>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className={styles.card}
-          >
-            <h2>Examples &rarr;</h2>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h2>Deploy &rarr;</h2>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+      <div className={styles.main}>
+        <div>
+          <h1 className={styles.title}>Welcome to Blockchain Developments!</h1>
+          <div className={styles.description}>Welcome to the DAO!</div>
+          <div className={styles.description}>
+            Your NFT Balance: {nftBalance}
+            <br />
+            Treasury Balance: {formatEther(treasuryBalance)} ETH
+            <br />
+            Total Number of Proposals: {numProposals}
+          </div>
+          <div className={styles.flex}>
+            <button
+              className={styles.button}
+              onClick={() => setSelectedTab("Create Proposal")}
+            >
+              Create Proposal
+            </button>
+            <button
+              className={styles.button}
+              onClick={() => setSelectedTab("View Proposals")}
+            >
+              View Proposals
+            </button>
+          </div>
+          {renderTabs()}
         </div>
-      </main>
+        <div>
+          <img className={styles.image} src="/images/0.svg" />
+        </div>
+      </div>
 
       <footer className={styles.footer}>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <span className={styles.logo}>
-            <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-          </span>
-        </a>
+        Made with &#10084; by &nbsp; <b>Naresh</b>
       </footer>
     </div>
   )
